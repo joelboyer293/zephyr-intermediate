@@ -4,43 +4,29 @@
 LOG_MODULE_REGISTER(demo, LOG_LEVEL_DBG);
 
 #define STACK_SIZE 1024
+#define ITERATIONS 100000
 
-void t_high_fn(void *p1, void *p2, void *p3) {
-    while (1) {
-        LOG_INF("T_HIGH running");
-        k_msleep(100);
-    }
+K_MUTEX_DEFINE(lock);
+
+volatile int shared_counter = 0;
+
+void thread_fn(void *p1, void *p2, void *p3) {
+    for (int i = 0; i < ITERATIONS; i++) {
+        k_mutex_lock(&lock, K_FOREVER);
+        shared_counter++;
+        k_mutex_unlock(&lock);
+    }    
 }
 
-void t_med_fn(void *p1, void *p2, void *p3) {
-    while (1) {
-        LOG_INF("T_MED running");
-        k_msleep(200);
-    }
+// Equal priority threads with same behavior
+K_THREAD_DEFINE(thread_1, STACK_SIZE, thread_fn, NULL, NULL, NULL,  2, 0, 0);
+K_THREAD_DEFINE(thread_2, STACK_SIZE, thread_fn, NULL, NULL, NULL,  2, 0, 0);
+
+int main(void) { 
+    k_thread_join(thread_1, K_FOREVER);
+    k_thread_join(thread_2, K_FOREVER);
+    LOG_INF("Expected counter: %d", ITERATIONS*2);
+    LOG_INF("Actual counter: %d", shared_counter);
+    return 0;
 }
-
-void t_low_fn(void *p1, void *p2, void *p3) {
-    while (1) {
-        LOG_INF("T_LOW running");
-        k_msleep(300);
-    }
-}
-
-void t_coop_fn(void *p1, void *p2, void *p3) {
-    while (1) {
-        int sum = 0;
-        for (int i = 0; i < 5; i++) {
-            sum += i;
-            LOG_INF("%d BUSY WORK %d", i, sum);
-        }
-        k_yield();
-    }
-}
-
-K_THREAD_DEFINE(thread_high, STACK_SIZE, t_high_fn, NULL, NULL, NULL,  3, 0, 0);
-K_THREAD_DEFINE(thread_med , STACK_SIZE, t_med_fn , NULL, NULL, NULL,  5, 0, 0);
-K_THREAD_DEFINE(thread_low , STACK_SIZE, t_low_fn , NULL, NULL, NULL,  7, 0, 0);
-K_THREAD_DEFINE(thread_coop, STACK_SIZE, t_coop_fn, NULL, NULL, NULL, -1, 0, 0);
-
-int main(void) { return 0; }
 
